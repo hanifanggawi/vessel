@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	beginMarker = "#---BEGIN TETHER MANAGED DOMAINS---#"
-	endMarker   = "#---END TETHER MANAGED DOMAINS-----#"
+	beginMarker = "#---BEGIN VESSEL MANAGED DOMAINS---#"
+	endMarker   = "#---END VESSEL MANAGED DOMAINS-----#"
 	redirectIP  = "0.0.0.0"
 )
 
