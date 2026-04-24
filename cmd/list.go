@@ -4,7 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"tether/internal/hosts"
+	"github.com/hanifanggawi/vessel/internal/hosts"
 
 	"github.com/spf13/cobra"
 )

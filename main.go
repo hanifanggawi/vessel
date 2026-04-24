@@ -1,6 +1,6 @@
 package main
 
-import "tether/cmd"
+import "github.com/hanifanggawi/vessel/cmd"
 
 func main() {
 	cmd.Execute()

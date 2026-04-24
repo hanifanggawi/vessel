@@ -5,7 +5,7 @@ package cmd
 
 import (
 	"fmt"
-	"tether/internal/hosts"
+	"github.com/hanifanggawi/vessel/internal/hosts"
 
 	"github.com/spf13/cobra"
 )

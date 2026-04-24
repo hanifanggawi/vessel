@@ -1,4 +1,4 @@
-module tether
+module github.com/hanifanggawi/vessel
 
 go 1.24.3
 

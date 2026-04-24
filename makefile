@@ -1,2 +1,2 @@
 build:
-	go build -o tether.exe
+	go build -o vessel.exe
