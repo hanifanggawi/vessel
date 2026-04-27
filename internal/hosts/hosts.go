@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -27,7 +28,14 @@ func getHostsPath() (string, error) {
 	// 	return "", err
 	// }
 	// return filepath.Join(cwd, "bin", "hosts_test"), nil
-	return filepath.Join(os.Getenv("SystemRoot"), "System32", "drivers", "etc", "hosts"), nil
+	switch runtime.GOOS {
+	case "windows":
+		return filepath.Join(os.Getenv("SystemRoot"), "System32", "drivers", "etc", "hosts"), nil
+	case "linux":
+		return "/etc/hosts", nil
+	default:
+		return "", fmt.Errorf("Unsupported OS %s", runtime.GOOS)
+	}
 }
 
 func getNgetesPath() (string, error) {
@@ -151,6 +159,14 @@ func updateDomains(domains mapset.Set[string]) error {
 
 	err = os.WriteFile(outputPath, []byte(newContent), 0644)
 	if err != nil {
+		if os.IsPermission(err) {
+			switch runtime.GOOS {
+			case "linux":
+				return fmt.Errorf("permission denied writing to %s: try running with sudo", outputPath)
+			case "windows":
+				return fmt.Errorf("permission denied writing to %s: try running as Administrator", outputPath)
+			}
+		}
 		return err
 	}
 
@@ -200,6 +216,9 @@ func insertBoundaryMarkers() error {
 
 	err = os.WriteFile(outputPath, []byte(newContent), 0644)
 	if err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("permission denied writing to %s: try running with sudo", outputPath)
+		}
 		return err
 	}
 
@@ -254,7 +273,11 @@ func Remove(domain string) error {
 		return nil
 	}
 
-	updateDomains(domains)
+	err := updateDomains(domains)
+
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Removed entries")
 	for _, entry := range domainsToRemove {

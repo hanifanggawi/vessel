@@ -4,6 +4,8 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/hanifanggawi/vessel/internal/hosts"
 
 	"github.com/spf13/cobra"
@@ -22,7 +24,10 @@ to quickly create a Cobra application.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		hosts.Remove(domain)
+		err := hosts.Remove(domain)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 	},
 }
 
