@@ -314,9 +314,6 @@ func List() {
 func Remove(domain string) error {
 	domains := getDomainsSet()
 
-	for domain := range domains.Iter() {
-		fmt.Printf("DISINI domain: %+v\n", domain)
-	}
 	var domainsToRemove []string
 	for _, subdomain := range defaultSubdomains {
 		ok := domains.ContainsOne(domain)

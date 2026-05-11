@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/hanifanggawi/vessel/internal/config"
-	"github.com/hanifanggawi/vessel/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +19,11 @@ var addCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
+		err := config.RunReconcile()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
 		domainRule := config.DomainRule{
 			Domain:  domain,
 			AddedAt: time.Now(),
@@ -32,7 +36,7 @@ var addCmd = &cobra.Command{
 		for _, rule := range rules {
 			fmt.Println(rule)
 		}
-		err = daemon.RunReconcile()
+		err = config.RunReconcile()
 		if err != nil {
 			fmt.Println(err.Error())
 		}

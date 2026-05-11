@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/hanifanggawi/vessel/internal/config"
-	"github.com/hanifanggawi/vessel/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +23,10 @@ to quickly create a Cobra application.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		err := daemon.RunReconcile()
+		err := config.RunReconcile()
 		if err != nil {
 			fmt.Println(err.Error())
+			return
 		}
 		removedRule, err := config.RemoveRule(domain)
 		if err != nil {
@@ -35,7 +35,7 @@ to quickly create a Cobra application.`,
 		} else {
 			fmt.Printf("Removed rule for `%s`\n", removedRule)
 		}
-		err = daemon.RunReconcile()
+		err = config.RunReconcile()
 		if err != nil {
 			fmt.Println(err.Error())
 		}

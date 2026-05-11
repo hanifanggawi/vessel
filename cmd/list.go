@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/hanifanggawi/vessel/internal/config"
-	"github.com/hanifanggawi/vessel/internal/hosts"
 
 	"github.com/spf13/cobra"
 )
@@ -23,7 +22,6 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		hosts.List()
 		configs, err := config.LoadConfig("/home/hanif/data/code/vessel/.local/domainconfig.toml")
 		if err != nil {
 			fmt.Println(err.Error())

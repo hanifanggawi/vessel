@@ -1,11 +1,9 @@
-package daemon
+package config
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/hanifanggawi/vessel/internal/config"
-	. "github.com/hanifanggawi/vessel/internal/config"
 	"github.com/hanifanggawi/vessel/internal/hosts"
 )
 
@@ -19,7 +17,7 @@ var defaultSubdomains = []string{
 }
 
 func RunReconcile() error {
-	domainRules, err := config.LoadConfig(DomainsConfigPath)
+	domainRules, err := LoadConfig(DomainsConfigPath)
 	if err != nil {
 		return err
 	}
@@ -51,10 +49,6 @@ func reconcileHostsFile(rules []DomainRule, hostsPath string) error {
 		}
 	}
 
-	for _, entry := range hostsEntries {
-		fmt.Printf("DISINI entry: %+v\n", entry)
-	}
-
 	err = hosts.UpdateHostsEntries(hostsEntries)
 	if err != nil {
 		return err
@@ -66,9 +60,6 @@ func reconcileHostsFile(rules []DomainRule, hostsPath string) error {
 func generateDomainEntries(domain string) []string {
 	entries := make([]string, 0, len(defaultSubdomains))
 	for _, subdomain := range defaultSubdomains {
-		// if subdomain == "" {
-		// 	entries = append(entries, "%s %s", redirectIP, domain)
-		// }
 		entries = append(entries, fmt.Sprintf("%s %s%s", redirectIP, subdomain, domain))
 	}
 	return entries
