@@ -6,8 +6,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/hanifanggawi/vessel/internal/hosts"
-
+	"github.com/hanifanggawi/vessel/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +23,12 @@ to quickly create a Cobra application.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		err := hosts.Remove(domain)
+		removedRule, err := config.RemoveRule(domain)
 		if err != nil {
 			fmt.Println(err.Error())
+
+		} else {
+			fmt.Printf("Removed rule for `%s`\n", removedRule)
 		}
 	},
 }

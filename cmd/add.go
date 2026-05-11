@@ -5,8 +5,9 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/hanifanggawi/vessel/internal/hosts"
+	"time"
 
+	"github.com/hanifanggawi/vessel/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +19,17 @@ var addCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		err := hosts.Add(domain)
+		domainRule := config.DomainRule{
+			Domain:  domain,
+			AddedAt: time.Now(),
+			Kind:    "block",
+		}
+		rules, err := config.AppendRule([]config.DomainRule{domainRule})
 		if err != nil {
 			fmt.Println(err.Error())
+		}
+		for _, rule := range rules {
+			fmt.Println(rule)
 		}
 	},
 }

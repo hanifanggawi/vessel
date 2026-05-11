@@ -4,8 +4,10 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/hanifanggawi/vessel/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +36,10 @@ func Execute() {
 }
 
 func init() {
+	err := config.Init()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.

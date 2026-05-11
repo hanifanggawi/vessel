@@ -22,7 +22,7 @@ var defaultSubdomains = []string{
 	// "www.",
 }
 
-func getHostsPath() (string, error) {
+func GetHostsPath() (string, error) {
 	// cwd, err := os.Getwd()
 	// if err != nil {
 	// 	return "", err
@@ -38,16 +38,8 @@ func getHostsPath() (string, error) {
 	}
 }
 
-func getNgetesPath() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(cwd, "bin", "hosts_test"), nil
-}
-
 func getDomains() []string {
-	hostsPath, err := getHostsPath()
+	hostsPath, err := GetHostsPath()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -80,7 +72,7 @@ func getDomains() []string {
 }
 
 func getDomainsSet() mapset.Set[string] {
-	hostsPath, err := getHostsPath()
+	hostsPath, err := GetHostsPath()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -111,7 +103,7 @@ func getDomainsSet() mapset.Set[string] {
 }
 
 func updateDomains(domains mapset.Set[string]) error {
-	hostsPath, err := getHostsPath()
+	hostsPath, err := GetHostsPath()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -150,7 +142,7 @@ func updateDomains(domains mapset.Set[string]) error {
 
 	newContent := strings.Join(updatedLines, "\n")
 
-	outputPath, err := getHostsPath()
+	outputPath, err := GetHostsPath()
 	if err != nil {
 		return err
 	}
@@ -174,7 +166,7 @@ func updateDomains(domains mapset.Set[string]) error {
 }
 
 func checkBoundaryExists() bool {
-	hostsPath, err := getHostsPath()
+	hostsPath, err := GetHostsPath()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -198,7 +190,7 @@ func checkBoundaryExists() bool {
 }
 
 func insertBoundaryMarkers() error {
-	hostsPath, err := getHostsPath()
+	hostsPath, err := GetHostsPath()
 	if err != nil {
 		return err
 	}
@@ -246,7 +238,6 @@ func Add(domain string) error {
 }
 
 func List() {
-	fmt.Println("Restricted domains:")
 	domains := getDomains()
 	for _, domain := range domains {
 		fmt.Println(domain)
