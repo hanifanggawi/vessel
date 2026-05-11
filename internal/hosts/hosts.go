@@ -102,6 +102,72 @@ func getDomainsSet() mapset.Set[string] {
 	return domains
 }
 
+func UpdateHostsEntries(entries []string) error {
+	hostsPath, err := GetHostsPath()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	data, err := os.ReadFile(hostsPath)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var beginIndex int
+	var endIndex int
+	for index, line := range lines {
+		if line == beginMarker {
+			beginIndex = index
+		}
+		if line == endMarker {
+			endIndex = index
+		}
+	}
+	updatedLines := make([]string, 0, len(lines))
+	for i := 0; i <= beginIndex; i++ {
+		updatedLines = append(updatedLines, lines[i])
+	}
+	for _, ruleEntry := range entries {
+		updatedLines = append(updatedLines, ruleEntry)
+	}
+	// for domain := range mapset.Elements(domains) {
+	// 	for _, subdomain := range defaultSubdomains {
+	// 		if subdomain == "" {
+	// 			updatedLines = append(updatedLines, fmt.Sprintf("%s %s", redirectIP, domain))
+	// 		} else {
+	// 			updatedLines = append(updatedLines, fmt.Sprintf("%s %s.%s", redirectIP, subdomain, domain))
+	// 		}
+	// 	}
+	// }
+	for j := endIndex; j < len(lines); j++ {
+		updatedLines = append(updatedLines, lines[j])
+	}
+
+	newContent := strings.Join(updatedLines, "\n")
+
+	outputPath, err := GetHostsPath()
+	if err != nil {
+		return err
+	}
+
+	// fmt.Printf("\nExpected new content %s\n", newContent)
+
+	err = os.WriteFile(outputPath, []byte(newContent), 0644)
+	if err != nil {
+		if os.IsPermission(err) {
+			switch runtime.GOOS {
+			case "linux":
+				return fmt.Errorf("permission denied writing to %s: try running with sudo", outputPath)
+			case "windows":
+				return fmt.Errorf("permission denied writing to %s: try running as Administrator", outputPath)
+			}
+		}
+		return err
+	}
+
+	return nil
+}
+
 func updateDomains(domains mapset.Set[string]) error {
 	hostsPath, err := GetHostsPath()
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hanifanggawi/vessel/internal/config"
+	"github.com/hanifanggawi/vessel/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +31,10 @@ var addCmd = &cobra.Command{
 		}
 		for _, rule := range rules {
 			fmt.Println(rule)
+		}
+		err = daemon.RunReconcile()
+		if err != nil {
+			fmt.Println(err.Error())
 		}
 	},
 }
