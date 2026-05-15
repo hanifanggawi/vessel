@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/hanifanggawi/vessel/internal/hosts"
 )
@@ -41,11 +42,30 @@ func reconcileHostsFile(rules []DomainRule, hostsPath string) error {
 		case RuleTypeBlock:
 			hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
 		case RuleTypeScheduled:
-			// TODO: validate schedule, append entry only if time now fits within schedule
-			hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
+			// validate schedule, append entry only if time now fits within schedule
+			addEntry := false
+			for _, window := range rule.BlockedWindows {
+				start, err := window.ParseStart()
+				end, err := window.ParseEnd()
+				now := time.Now()
+				if err != nil {
+					return err
+				}
+				if now.After(start) && now.Before(end) {
+					addEntry = true
+					break
+				}
+			}
+			fmt.Printf("DISINI ScheduleType addEntry: %+v\n", addEntry)
+			if addEntry {
+				hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
+			}
 		case RuleTypeTimer:
-			// TODO: validate timer, append entry only if time now is <= block_until
-			hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
+			// validate timer, append entry only if time now is <= block_until
+			if time.Now().Before(rule.BlockedUntil) {
+				fmt.Println("")
+				hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
+			}
 		}
 	}
 
