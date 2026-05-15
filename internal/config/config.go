@@ -52,6 +52,22 @@ type TimeWindow struct {
 	EndTime   string `toml:"end"`
 }
 
+func parseTimeOfDay(s string) (time.Time, error) {
+	t, err := time.Parse("15:04", s)
+	if err != nil {
+		return time.Time{}, err
+	}
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location()), nil
+}
+
+func (w TimeWindow) equals(other TimeWindow) bool {
+	return w.StartTime == other.StartTime && w.EndTime == other.EndTime
+}
+
+func (w TimeWindow) ParseStart() (time.Time, error) { return parseTimeOfDay(w.StartTime) }
+func (w TimeWindow) ParseEnd() (time.Time, error)   { return parseTimeOfDay(w.EndTime) }
+
 type DomainRule struct {
 	Domain         string
 	AddedAt        time.Time    `toml:"added_at"`
@@ -82,6 +98,79 @@ func (r DomainRule) ConfigStr() string {
 	return fmt.Sprintf("%q = { %s }", r.Domain, strings.Join(parts, ", "))
 }
 
+// RuleSpec is the raw, flag-level intent for a rule. The concrete RuleType is
+// inferred from which fields are set: windows -> scheduled, for/until -> timer,
+// none -> block.
+type RuleSpec struct {
+	Domain  string
+	Windows []TimeWindow
+	For     time.Duration
+	Until   string
+}
+
+func (s RuleSpec) typeCount() int {
+	n := 0
+	if len(s.Windows) > 0 {
+		n++
+	}
+	if s.For > 0 {
+		n++
+	}
+	if s.Until != "" {
+		n++
+	}
+	return n
+}
+
+// BuildRule infers the RuleType from the spec and produces a concrete
+// DomainRule, validating the time inputs.
+func BuildRule(spec RuleSpec) (DomainRule, error) {
+	if spec.Domain == "" {
+		return DomainRule{}, fmt.Errorf("domain is required")
+	}
+	if spec.typeCount() > 1 {
+		return DomainRule{}, fmt.Errorf("a rule can only be one of: scheduled (--window), timer (--for / --until)")
+	}
+
+	rule := DomainRule{Domain: spec.Domain, AddedAt: time.Now()}
+
+	switch {
+	case len(spec.Windows) > 0:
+		for _, w := range spec.Windows {
+			if _, err := w.ParseStart(); err != nil {
+				return DomainRule{}, fmt.Errorf("invalid window start %q: expected HH:MM", w.StartTime)
+			}
+			if _, err := w.ParseEnd(); err != nil {
+				return DomainRule{}, fmt.Errorf("invalid window end %q: expected HH:MM", w.EndTime)
+			}
+		}
+		rule.Kind = RuleTypeScheduled
+		rule.BlockedWindows = spec.Windows
+
+	case spec.For > 0:
+		rule.Kind = RuleTypeTimer
+		rule.BlockedUntil = time.Now().Add(spec.For)
+
+	case spec.Until != "":
+		until, err := parseTimeOfDay(spec.Until)
+		if err != nil {
+			return DomainRule{}, fmt.Errorf("invalid --until %q: expected HH:MM", spec.Until)
+		}
+		// A time-of-day already past today means the user means the next
+		// occurrence, so roll forward a day.
+		if !until.After(time.Now()) {
+			until = until.Add(24 * time.Hour)
+		}
+		rule.Kind = RuleTypeTimer
+		rule.BlockedUntil = until
+
+	default:
+		rule.Kind = RuleTypeBlock
+	}
+
+	return rule, nil
+}
+
 type DomainsConfig struct {
 	Rules map[string]DomainRule `toml:"rules"`
 }
@@ -100,33 +189,92 @@ func LoadConfig(path string) ([]DomainRule, error) {
 	return rules, nil
 }
 
-func AppendRule(rules []DomainRule) ([]DomainRule, error) {
+type AppendOutcome int
+
+const (
+	// OutcomeAdded: domain was new, rule created.
+	OutcomeAdded AppendOutcome = iota
+	// OutcomeWindowsMerged: scheduled rule existed, new window(s) appended.
+	OutcomeWindowsMerged
+	// OutcomeReplaced: an existing rule was overwritten via replace.
+	OutcomeReplaced
+	// OutcomeConflict: an incompatible rule already exists; nothing written.
+	OutcomeConflict
+)
+
+type AppendResult struct {
+	Outcome AppendOutcome
+	// Rule is the resulting rule, or the attempted rule on a conflict.
+	Rule DomainRule
+	// Existing is the prior rule, set for merge/replace/conflict outcomes.
+	Existing DomainRule
+	// AddedWindows is the count of newly appended windows for a merge.
+	AddedWindows int
+}
+
+// AppendRule adds newRule to the config. If the domain already exists, the
+// outcome depends on the rule kinds and replace flag:
+//   - replace=true: the existing rule is overwritten wholesale.
+//   - scheduled existing + scheduled new: new windows are merged in (deduped).
+//   - any other mismatch: OutcomeConflict, nothing is written.
+func AppendRule(newRule DomainRule, replace bool) (AppendResult, error) {
 	currentRules, err := LoadConfig(DomainsConfigPath)
 	if err != nil {
-		return nil, err
+		return AppendResult{}, err
 	}
 
-	ruleMap := make(map[string]DomainRule, len(currentRules)+len(rules))
-	for _, rule := range currentRules {
-		ruleMap[rule.Domain] = rule
+	idx := -1
+	for i, r := range currentRules {
+		if r.Domain == newRule.Domain {
+			idx = i
+			break
+		}
 	}
 
-	now := time.Now()
-	for _, newRule := range rules {
-		if _, exists := ruleMap[newRule.Domain]; exists {
-			continue
-		}
-		if newRule.AddedAt.IsZero() {
-			newRule.AddedAt = now
-		}
-		ruleMap[newRule.Domain] = newRule
+	if newRule.AddedAt.IsZero() {
+		newRule.AddedAt = time.Now()
+	}
+
+	if idx == -1 {
 		currentRules = append(currentRules, newRule)
+		if err := writeConfig(DomainsConfigPath, currentRules); err != nil {
+			return AppendResult{}, err
+		}
+		return AppendResult{Outcome: OutcomeAdded, Rule: newRule}, nil
 	}
 
-	if err := writeConfig(DomainsConfigPath, currentRules); err != nil {
-		return nil, err
+	existing := currentRules[idx]
+
+	if replace {
+		// Preserve when the domain was first restricted.
+		newRule.AddedAt = existing.AddedAt
+		currentRules[idx] = newRule
+		if err := writeConfig(DomainsConfigPath, currentRules); err != nil {
+			return AppendResult{}, err
+		}
+		return AppendResult{Outcome: OutcomeReplaced, Rule: newRule, Existing: existing}, nil
 	}
-	return currentRules, nil
+
+	if existing.Kind == RuleTypeScheduled && newRule.Kind == RuleTypeScheduled {
+		merged := existing
+		added := 0
+		for _, w := range newRule.BlockedWindows {
+			if !slices.ContainsFunc(merged.BlockedWindows, w.equals) {
+				merged.BlockedWindows = append(merged.BlockedWindows, w)
+				added++
+			}
+		}
+		if added == 0 {
+			return AppendResult{Outcome: OutcomeWindowsMerged, Rule: existing, Existing: existing}, nil
+		}
+		currentRules[idx] = merged
+		if err := writeConfig(DomainsConfigPath, currentRules); err != nil {
+			return AppendResult{}, err
+		}
+		return AppendResult{Outcome: OutcomeWindowsMerged, Rule: merged, Existing: existing, AddedWindows: added}, nil
+	}
+
+	return AppendResult{Outcome: OutcomeConflict, Rule: newRule, Existing: existing}, nil
 }
 
 func RemoveRule(ruleDomain string) (string, error) {

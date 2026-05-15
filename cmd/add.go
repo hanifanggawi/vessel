@@ -4,55 +4,128 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hanifanggawi/vessel/internal/config"
 	"github.com/spf13/cobra"
 )
 
+// errRuleExists signals a conflict whose explanation has already been printed,
+// so the top-level handler should not print it again.
+var errRuleExists = errors.New("rule already exists")
+
+var (
+	addWindows []string
+	addFor     time.Duration
+	addUntil   string
+	addReplace bool
+)
+
+func parseWindow(s string) (config.TimeWindow, error) {
+	parts := strings.SplitN(s, "-", 2)
+	if len(parts) != 2 {
+		return config.TimeWindow{}, fmt.Errorf("invalid window %q: expected HH:MM-HH:MM", s)
+	}
+	return config.TimeWindow{
+		StartTime: strings.TrimSpace(parts[0]),
+		EndTime:   strings.TrimSpace(parts[1]),
+	}, nil
+}
+
 // addCmd represents the add command
 var addCmd = &cobra.Command{
 	Use:   "add [domain]",
 	Short: "Add a domain to restrict",
-	Long:  `Add a domain to restrict, e.g instagram.com`,
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		domain := args[0]
-		err := config.RunReconcile()
-		if err != nil {
-			fmt.Println(err.Error())
-			return
+	Long: `Add a domain to restrict, e.g instagram.com
+
+The rule type is inferred from the flags you pass:
+
+  vessel add instagram.com                          permanent block
+  vessel add instagram.com --window 09:00-17:00     scheduled (repeatable)
+  vessel add instagram.com --for 2h                 timer (duration from now)
+  vessel add instagram.com --until 18:30            timer (until a time today)
+
+Adding more --window values to an existing scheduled rule merges them in.
+For any other change to an existing rule, pass --replace to overwrite it.`,
+	Args:          cobra.ExactArgs(1),
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := runAdd(args[0])
+		if err != nil && !errors.Is(err, errRuleExists) {
+			fmt.Fprintln(cmd.ErrOrStderr(), err.Error())
 		}
-		domainRule := config.DomainRule{
-			Domain:  domain,
-			AddedAt: time.Now(),
-			Kind:    "block",
-		}
-		rules, err := config.AppendRule([]config.DomainRule{domainRule})
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		for _, rule := range rules {
-			fmt.Println(rule)
-		}
-		err = config.RunReconcile()
-		if err != nil {
-			fmt.Println(err.Error())
-		}
+		return err
 	},
+}
+
+func runAdd(domain string) error {
+
+	windows := make([]config.TimeWindow, 0, len(addWindows))
+	for _, w := range addWindows {
+		tw, err := parseWindow(w)
+		if err != nil {
+			return err
+		}
+		windows = append(windows, tw)
+	}
+
+	rule, err := config.BuildRule(config.RuleSpec{
+		Domain:  domain,
+		Windows: windows,
+		For:     addFor,
+		Until:   addUntil,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := config.RunReconcile(); err != nil {
+		return err
+	}
+
+	result, err := config.AppendRule(rule, addReplace)
+	if err != nil {
+		return err
+	}
+
+	switch result.Outcome {
+	case config.OutcomeAdded:
+		fmt.Printf("Added rule: %s\n", result.Rule.ConfigStr())
+	case config.OutcomeReplaced:
+		fmt.Printf("Replaced rule for %q\n", domain)
+		fmt.Printf("  was: %s\n", result.Existing.ConfigStr())
+		fmt.Printf("  now: %s\n", result.Rule.ConfigStr())
+	case config.OutcomeWindowsMerged:
+		if result.AddedWindows == 0 {
+			fmt.Printf("No change: those window(s) are already set for %q\n", domain)
+		} else {
+			fmt.Printf("Added %d window(s) to %q\n", result.AddedWindows, domain)
+			fmt.Printf("  now: %s\n", result.Rule.ConfigStr())
+		}
+	case config.OutcomeConflict:
+		fmt.Printf("A rule for %q already exists:\n", domain)
+		fmt.Printf("  %s\n", result.Existing.ConfigStr())
+		fmt.Printf("Re-run with --replace to overwrite it.\n")
+		return errRuleExists
+	}
+
+	return config.RunReconcile()
 }
 
 func init() {
 	rootCmd.AddCommand(addCmd)
 
-	// Here you will define your flags and configuration settings.
+	addCmd.Flags().StringArrayVarP(&addWindows, "window", "w", nil, "blocked time window HH:MM-HH:MM (repeatable; implies scheduled)")
+	addCmd.Flags().DurationVar(&addFor, "for", 0, "block for a duration from now, e.g. 2h30m (implies timer)")
+	addCmd.Flags().StringVar(&addUntil, "until", "", "block until a time of day HH:MM (implies timer)")
+	addCmd.Flags().BoolVar(&addReplace, "replace", false, "overwrite an existing rule for the domain")
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// addCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	addCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		fmt.Fprintln(cmd.ErrOrStderr(), err.Error())
+		return err
+	})
 }
