@@ -58,6 +58,14 @@ var daemonStatusCmd = &cobra.Command{
 	},
 }
 
+var daemonRestartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "Restart the daemon",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return daemon.Restart()
+	},
+}
+
 // Hidden — called internally when the binary re-execs itself
 var daemonRunCmd = &cobra.Command{
 	Use:    "run",
@@ -68,7 +76,7 @@ var daemonRunCmd = &cobra.Command{
 }
 
 func init() {
-	daemonCmd.AddCommand(daemonRunCmd, daemonStartCmd, daemonStopCmd, daemonStatusCmd)
+	daemonCmd.AddCommand(daemonRunCmd, daemonStartCmd, daemonStopCmd, daemonStatusCmd, daemonRestartCmd)
 	rootCmd.AddCommand(daemonCmd)
 
 	// Here you will define your flags and configuration settings.

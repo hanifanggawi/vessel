@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func stateDir() (string, error) {
@@ -118,6 +119,35 @@ func Stop() error {
 	removePID()
 	fmt.Printf("daemon stopped (PID %d)\n", pid)
 	return nil
+}
+
+func Restart() error {
+	pid, err := readPID()
+	if err != nil {
+		// Nothing running, just start fresh
+		return Start()
+	}
+
+	if err := Stop(); err != nil {
+		return fmt.Errorf("restart: stop failed: %w", err)
+	}
+
+	if err := waitForExit(pid, 5*time.Second); err != nil {
+		return fmt.Errorf("restart: old daemon did not exit: %w", err)
+	}
+
+	return Start()
+}
+
+func waitForExit(pid int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if alive, _ := isRunning(pid); !alive {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for PID %d to exit", pid)
 }
 
 func Status() (pid int, running bool, err error) {
