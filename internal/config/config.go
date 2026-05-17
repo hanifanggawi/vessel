@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -18,14 +20,47 @@ var (
 	EtcHostsPath      string
 )
 
+// userConfigDir resolves the config directory of the user who invoked vessel.
+// vessel needs root to edit /etc/hosts, so on Unix it is typically run under
+// sudo, where os.UserConfigDir() would resolve to /root rather than the real
+// user's home. To guarantee `vessel` and `sudo vessel` resolve to the same
+// file, the Unix path derives from the invoking user's passwd home + /.config
+// and never consults XDG_CONFIG_HOME (which sudo's env_reset strips, making it
+// impossible to keep an XDG-honoring path consistent across sudo).
+//
+// Windows has no sudo: UAC elevation keeps the same user profile, so
+// os.UserConfigDir() (%AppData%) is already consistent and idiomatic there.
+func userConfigDir() (string, error) {
+	if runtime.GOOS == "windows" {
+		return os.UserConfigDir()
+	}
+
+	name := os.Getenv("SUDO_USER")
+
+	var u *user.User
+	var err error
+	if name != "" && name != "root" {
+		u, err = user.Lookup(name)
+	} else {
+		u, err = user.Current()
+	}
+	if err != nil {
+		return "", fmt.Errorf("could not resolve invoking user: %w", err)
+	}
+	return filepath.Join(u.HomeDir, ".config"), nil
+}
+
 func Init() error {
-	cwd, _ := os.Getwd()
 	var err error
 
 	if path, ok := os.LookupEnv("VESSEL_DOMAINS_CONFIG_PATH"); ok {
 		DomainsConfigPath = path
 	} else {
-		DomainsConfigPath = filepath.Join(cwd, ".local", "domainconfig.toml")
+		configDir, err := userConfigDir()
+		if err != nil {
+			return fmt.Errorf("could not determine config directory: %w", err)
+		}
+		DomainsConfigPath = filepath.Join(configDir, "vessel", "domainconfig.toml")
 	}
 
 	if path, ok := os.LookupEnv("VESSEL_HOSTS_PATH"); ok {
@@ -169,6 +204,42 @@ func BuildRule(spec RuleSpec) (DomainRule, error) {
 	}
 
 	return rule, nil
+}
+
+func ruleDetails(r DomainRule) string {
+	switch r.Kind {
+	case RuleTypeTimer:
+		if !r.BlockedUntil.IsZero() {
+			return "until " + r.BlockedUntil.Format(time.TimeOnly)
+		}
+	case RuleTypeScheduled:
+		windows := make([]string, len(r.BlockedWindows))
+		for i, w := range r.BlockedWindows {
+			windows[i] = w.StartTime + "-" + w.EndTime
+		}
+		return strings.Join(windows, ", ")
+	}
+	return ""
+}
+
+func DomainConfigListStr() (string, error) {
+	rules, err := LoadConfig(DomainsConfigPath)
+	if err != nil {
+		return "", err
+	}
+	if len(rules) == 0 {
+		return "No rules configured. \n", nil
+	}
+	var sb strings.Builder
+	sb.Grow(134 + len(rules)*72)
+	fmt.Fprintf(&sb, "%-40s %-12s %s\n", "DOMAIN", "KIND", "DETAILS")
+	sb.WriteString(strings.Repeat("-", 72))
+	sb.WriteString("\n")
+	for _, r := range rules {
+		details := ruleDetails(r)
+		fmt.Fprintf(&sb, "%-40s %-12s %s\n", r.Domain, string(r.Kind), details)
+	}
+	return sb.String(), nil
 }
 
 type DomainsConfig struct {

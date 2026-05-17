@@ -11,11 +11,23 @@ import (
 )
 
 func stateDir() (string, error) {
-	base, err := os.UserCacheDir() // ~/.cache on Linux, %AppData%\Local on Windows
-	if err != nil {
-		return "", err
+	uid := os.Getuid()
+	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
+		if parsed, err := strconv.Atoi(sudoUID); err == nil {
+			uid = parsed
+		}
 	}
-	dir := filepath.Join(base, "vessel")
+	var dir string
+	if uid == -1 {
+		// Windows: os.Getuid() is not implemented, fall back to user cache dir
+		base, err := os.UserCacheDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(base, "vessel")
+	} else {
+		dir = filepath.Join(os.TempDir(), fmt.Sprintf("vessel-%d", uid))
+	}
 	return dir, os.MkdirAll(dir, 0o700)
 }
 
