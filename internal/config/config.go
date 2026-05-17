@@ -348,7 +348,7 @@ func AppendRule(newRule DomainRule, replace bool) (AppendResult, error) {
 	return AppendResult{Outcome: OutcomeConflict, Rule: newRule, Existing: existing}, nil
 }
 
-func RemoveRule(ruleDomain string) (string, error) {
+func ReleaseRule(ruleDomain string) (string, error) {
 	currentRules, err := LoadConfig(DomainsConfigPath)
 	if err != nil {
 		return "", err
@@ -361,7 +361,7 @@ func RemoveRule(ruleDomain string) (string, error) {
 		}
 	}
 	if ruleIndex == -1 {
-		return "", fmt.Errorf("Rule `%s` is not listed or already removed", ruleDomain)
+		return "", fmt.Errorf("Rule `%s` is not listed or already released", ruleDomain)
 	}
 	updatedRules := slices.Delete(currentRules, ruleIndex, ruleIndex+1)
 	if err := writeConfig(DomainsConfigPath, updatedRules); err != nil {
