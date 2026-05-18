@@ -75,8 +75,28 @@ var daemonRunCmd = &cobra.Command{
 	},
 }
 
+var daemonInstallCmd = &cobra.Command{
+	Use:           "install",
+	Short:         "Install the daemon as a system service that runs at startup",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return daemon.Install()
+	},
+}
+
+var daemonUninstallCmd = &cobra.Command{
+	Use:           "uninstall",
+	Short:         "Remove the installed startup service",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return daemon.Uninstall()
+	},
+}
+
 func init() {
-	daemonCmd.AddCommand(daemonRunCmd, daemonStartCmd, daemonStopCmd, daemonStatusCmd, daemonRestartCmd)
+	daemonCmd.AddCommand(daemonRunCmd, daemonStartCmd, daemonStopCmd, daemonStatusCmd, daemonRestartCmd, daemonInstallCmd, daemonUninstallCmd)
 	rootCmd.AddCommand(daemonCmd)
 
 	// Here you will define your flags and configuration settings.

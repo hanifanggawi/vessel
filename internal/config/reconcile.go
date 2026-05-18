@@ -18,6 +18,14 @@ var defaultSubdomains = []string{
 }
 
 func RunReconcile() error {
+	// A missing config means nothing should be blocked. The boot-time daemon
+	// reconciles every 60s and would otherwise log a decode error each tick
+	// before `vessel init` has run; treat absence as an empty ruleset so the
+	// managed block is simply cleared.
+	if _, err := os.Stat(DomainsConfigPath); os.IsNotExist(err) {
+		return reconcileHostsFile(nil, EtcHostsPath)
+	}
+
 	domainRules, err := LoadConfig(DomainsConfigPath)
 	if err != nil {
 		return err

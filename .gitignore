@@ -34,4 +34,6 @@ go.work.sum
 
 .local
 
+dist
+
 vessel

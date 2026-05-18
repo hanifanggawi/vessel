@@ -24,6 +24,12 @@ to quickly create a Cobra application.`,
 	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
+// SetVersion wires the build-time version into the root command so
+// `vessel --version` reports it.
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
