@@ -58,8 +58,7 @@ For any other change to an existing rule, pass --replace to overwrite it.`,
 			return err
 		}
 		if len(args) > 1 {
-			err := fmt.Errorf("unexpected arguments: %s\nDid you mean: vessel add %s --window %s?",
-				strings.Join(args[1:], " "), args[0], strings.Join(args[1:], " --window "))
+			err := fmt.Errorf("unexpected arguments: %s\nRun 'vessel add --help' for usage", strings.Join(args[1:], " "))
 			fmt.Fprintln(cmd.ErrOrStderr(), err)
 			return err
 		}
