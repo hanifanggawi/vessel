@@ -13,15 +13,24 @@ import (
 // daemonCmd represents the daemon command
 var daemonCmd = &cobra.Command{
 	Use:   "daemon",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Manage the daemon that keeps the hosts file in sync",
+	Long: `Manage the reconcile daemon that continuously reads and syncs the
+hosts file so rules stay enforced.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Install it as a system service to run at startup, or start it ad-hoc
+for a non-boot-managed background run:
+
+  sudo vessel daemon install     enable at startup (systemd / scheduled task)
+  sudo vessel daemon uninstall   remove the startup service
+
+  vessel daemon start            ad-hoc background run
+  vessel daemon status
+  vessel daemon stop
+  vessel daemon restart
+
+Installing or uninstalling the startup service requires elevation.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("daemon called")
+		cmd.Help()
 	},
 }
 
