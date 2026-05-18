@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hanifanggawi/vessel/internal/config"
+	"github.com/hanifanggawi/vessel/internal/hosts"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +51,20 @@ The rule type is inferred from the flags you pass:
 
 Adding more --window values to an existing scheduled rule merges them in.
 For any other change to an existing rule, pass --replace to overwrite it.`,
-	Args:          cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			err := fmt.Errorf("missing domain argument\nUsage: vessel add [domain] [--window HH:MM-HH:MM ...]")
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
+			return err
+		}
+		if len(args) > 1 {
+			err := fmt.Errorf("unexpected arguments: %s\nDid you mean: vessel add %s --window %s?",
+				strings.Join(args[1:], " "), args[0], strings.Join(args[1:], " --window "))
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
+			return err
+		}
+		return nil
+	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -63,6 +77,11 @@ For any other change to an existing rule, pass --replace to overwrite it.`,
 }
 
 func runAdd(domain string) error {
+
+	// Fail early if the hosts file writing permission is denied
+	if err := hosts.CheckWritable(); err != nil {
+		return err
+	}
 
 	windows := make([]config.TimeWindow, 0, len(addWindows))
 	for _, w := range addWindows {

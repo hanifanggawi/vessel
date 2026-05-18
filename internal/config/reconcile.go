@@ -56,7 +56,6 @@ func reconcileHostsFile(rules []DomainRule, hostsPath string) error {
 					break
 				}
 			}
-			fmt.Printf("DISINI ScheduleType addEntry: %+v\n", addEntry)
 			if addEntry {
 				hostsEntries = append(hostsEntries, generateDomainEntries(rule.Domain)...)
 			}

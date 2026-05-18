@@ -243,7 +243,40 @@ func DomainConfigListStr() (string, error) {
 }
 
 type DomainsConfig struct {
-	Rules map[string]DomainRule `toml:"rules"`
+	// Sealed, when true, gates destructive actions (release / unseal) behind
+	// a challenge. It lives at the top level of domainconfig.toml alongside
+	// [rules]; see writeConfig for why it survives rule edits.
+	Sealed bool                  `toml:"sealed"`
+	Rules  map[string]DomainRule `toml:"rules"`
+}
+
+// loadSealed reads only the seal state. A missing config is treated as
+// unsealed so callers can probe seal status before `vessel init`.
+func loadSealed(path string) (bool, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false, nil
+	}
+	var domainConfig DomainsConfig
+	if _, err := toml.DecodeFile(path, &domainConfig); err != nil {
+		return false, err
+	}
+	return domainConfig.Sealed, nil
+}
+
+// IsSealed reports whether the vessel is currently sealed.
+func IsSealed() (bool, error) {
+	return loadSealed(DomainsConfigPath)
+}
+
+// SetSealed writes the seal state while preserving the existing rules. This
+// is the only path that intentionally changes the seal; every other writer
+// goes through writeConfig, which preserves whatever seal is already on disk.
+func SetSealed(sealed bool) error {
+	rules, err := LoadConfig(DomainsConfigPath)
+	if err != nil {
+		return err
+	}
+	return writeConfigWithSeal(DomainsConfigPath, rules, sealed)
 }
 
 func LoadConfig(path string) ([]DomainRule, error) {
@@ -370,7 +403,19 @@ func ReleaseRule(ruleDomain string) (string, error) {
 	return ruleDomain, nil
 }
 
+// writeConfig persists rules without disturbing the seal state. Rule-editing
+// flows (AppendRule, ReleaseRule) rewrite the whole file, so the seal is read
+// back from disk and re-emitted here; this guarantees no rule edit can
+// silently unseal the vessel. Use SetSealed to change the seal on purpose.
 func writeConfig(path string, rules []DomainRule) error {
+	sealed, err := loadSealed(path)
+	if err != nil {
+		return err
+	}
+	return writeConfigWithSeal(path, rules, sealed)
+}
+
+func writeConfigWithSeal(path string, rules []DomainRule, sealed bool) error {
 	sorted := make([]DomainRule, len(rules))
 	copy(sorted, rules)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -378,6 +423,8 @@ func writeConfig(path string, rules []DomainRule) error {
 	})
 
 	var sb strings.Builder
+	// A top-level key must precede the [rules] table in TOML.
+	fmt.Fprintf(&sb, "sealed = %t\n\n", sealed)
 	sb.WriteString("[rules]\n")
 	for _, rule := range sorted {
 		sb.WriteString(rule.ConfigStr() + "\n")

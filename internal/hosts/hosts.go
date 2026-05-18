@@ -38,6 +38,23 @@ func GetHostsPath() (string, error) {
 	}
 }
 
+// CheckWritable verifies the hosts file can be opened for writing, surfacing
+// the elevation/permission error up front. It opens with O_WRONLY (no create,
+// no truncate) and immediately closes, so the file contents are untouched.
+// On Windows the hosts file requires an elevated prompt; this lets callers
+// fail before asking the user to do anything (e.g. a release challenge).
+func CheckWritable() error {
+	hostsPath, err := GetHostsPath()
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(hostsPath, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
 func getDomains() []string {
 	hostsPath, err := GetHostsPath()
 	if err != nil {
@@ -130,15 +147,6 @@ func UpdateHostsEntries(entries []string) error {
 	for _, ruleEntry := range entries {
 		updatedLines = append(updatedLines, ruleEntry)
 	}
-	// for domain := range mapset.Elements(domains) {
-	// 	for _, subdomain := range defaultSubdomains {
-	// 		if subdomain == "" {
-	// 			updatedLines = append(updatedLines, fmt.Sprintf("%s %s", redirectIP, domain))
-	// 		} else {
-	// 			updatedLines = append(updatedLines, fmt.Sprintf("%s %s.%s", redirectIP, subdomain, domain))
-	// 		}
-	// 	}
-	// }
 	for j := endIndex; j < len(lines); j++ {
 		updatedLines = append(updatedLines, lines[j])
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/hanifanggawi/vessel/internal/config"
+	"github.com/hanifanggawi/vessel/internal/hosts"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,26 @@ and reconciling the resulting state. For example:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		err := config.RunReconcile()
+
+		// Fail early if the hosts file writing permission is denied
+		if err := hosts.CheckWritable(); err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
+		sealed, err := config.IsSealed()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		if sealed {
+			if err := runReleaseChallenge(cmd); err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+		}
+
+		err = config.RunReconcile()
 		if err != nil {
 			fmt.Println(err.Error())
 			return
