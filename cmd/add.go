@@ -112,21 +112,21 @@ func runAdd(domain string) error {
 
 	switch result.Outcome {
 	case config.OutcomeAdded:
-		fmt.Printf("Added rule: %s\n", result.Rule.ConfigStr())
+		fmt.Printf("Added rule: %s\n", result.Rule.HumanStr())
 	case config.OutcomeReplaced:
 		fmt.Printf("Replaced rule for %q\n", domain)
-		fmt.Printf("  was: %s\n", result.Existing.ConfigStr())
-		fmt.Printf("  now: %s\n", result.Rule.ConfigStr())
+		fmt.Printf("  was: %s\n", result.Existing.HumanStr())
+		fmt.Printf("  now: %s\n", result.Rule.HumanStr())
 	case config.OutcomeWindowsMerged:
 		if result.AddedWindows == 0 {
 			fmt.Printf("No change: those window(s) are already set for %q\n", domain)
 		} else {
 			fmt.Printf("Added %d window(s) to %q\n", result.AddedWindows, domain)
-			fmt.Printf("  now: %s\n", result.Rule.ConfigStr())
+			fmt.Printf("  now: %s\n", result.Rule.HumanStr())
 		}
 	case config.OutcomeConflict:
 		fmt.Printf("A rule for %q already exists:\n", domain)
-		fmt.Printf("  %s\n", result.Existing.ConfigStr())
+		fmt.Printf("  %s\n", result.Existing.HumanStr())
 		fmt.Printf("Re-run with --replace to overwrite it.\n")
 		return errRuleExists
 	}

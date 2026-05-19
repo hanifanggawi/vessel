@@ -133,6 +133,37 @@ func (r DomainRule) ConfigStr() string {
 	return fmt.Sprintf("%q = { %s }", r.Domain, strings.Join(parts, ", "))
 }
 
+// HumanStr renders a rule as a short, readable phrase for command output,
+// e.g. `instagram.com (permanent block)` or
+// `instagram.com (scheduled: 09:00-17:00, 20:00-22:00)`
+func (r DomainRule) HumanStr() string {
+	switch r.Kind {
+	case RuleTypeScheduled:
+		windows := make([]string, len(r.BlockedWindows))
+		for i, w := range r.BlockedWindows {
+			windows[i] = w.StartTime + "-" + w.EndTime
+		}
+		return fmt.Sprintf("%s (scheduled: %s)", r.Domain, strings.Join(windows, ", "))
+	case RuleTypeTimer:
+		if !r.BlockedUntil.IsZero() {
+			layout := "15:04"
+			if !sameDay(r.BlockedUntil, time.Now()) {
+				layout = "15:04 on Mon 02 Jan"
+			}
+			return fmt.Sprintf("%s (timer: until %s)", r.Domain, r.BlockedUntil.Format(layout))
+		}
+		return fmt.Sprintf("%s (timer)", r.Domain)
+	default:
+		return fmt.Sprintf("%s (permanent block)", r.Domain)
+	}
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
+}
+
 // RuleSpec is the raw, flag-level intent for a rule. The concrete RuleType is
 // inferred from which fields are set: windows -> scheduled, for/until -> timer,
 // none -> block.
