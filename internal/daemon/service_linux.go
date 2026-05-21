@@ -50,6 +50,8 @@ func osInstall(exe, configPath string) error {
 		return fmt.Errorf("installing the system service requires root: re-run with sudo")
 	}
 
+	restoreSELinuxContext(exe)
+
 	if err := os.WriteFile(unitPath, []byte(unitContents(exe, configPath)), 0o644); err != nil {
 		return fmt.Errorf("could not write unit file %s: %w", unitPath, err)
 	}
@@ -82,6 +84,29 @@ func osUninstall() error {
 
 	fmt.Printf("Removed %s.service\n", serviceName)
 	return nil
+}
+
+// restoreSELinuxContext resets the SELinux label on the vessel binary to the
+// system default for its path (typically bin_t under /usr/local/bin). Without
+// this, a binary installed from a FUSE-mounted source (ntfs-3g, sshfs, etc.)
+// keeps a fusefs_t label, which systemd's init_t domain cannot execute, so the
+// unit fails to start at boot with an opaque AVC denial.
+//
+// Best-effort: no SELinux, no restorecon, or a relabel failure is not fatal.
+func restoreSELinuxContext(path string) {
+	if _, err := os.Stat("/sys/fs/selinux/enforce"); err != nil {
+		return
+	}
+	restorecon, err := exec.LookPath("restorecon")
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(restorecon, "-F", path)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not restore SELinux context on %s: %v\n", path, err)
+	}
 }
 
 func run(name string, args ...string) error {
