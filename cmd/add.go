@@ -23,6 +23,7 @@ var (
 	addFor     time.Duration
 	addUntil   string
 	addReplace bool
+	addHidden  bool
 )
 
 func parseWindow(s string) (config.TimeWindow, error) {
@@ -50,7 +51,10 @@ The rule type is inferred from the flags you pass:
   vessel add instagram.com --until 18:30            timer (until a time today)
 
 Adding more --window values to an existing scheduled rule merges them in.
-For any other change to an existing rule, pass --replace to overwrite it.`,
+For any other change to an existing rule, pass --replace to overwrite it.
+
+Pass --hidden to block the domain as normal while omitting it from
+'vessel list'.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			err := fmt.Errorf("missing domain argument\nUsage: vessel add [domain] [--window HH:MM-HH:MM ...]")
@@ -96,6 +100,7 @@ func runAdd(domain string) error {
 		Windows: windows,
 		For:     addFor,
 		Until:   addUntil,
+		Hidden:  addHidden,
 	})
 	if err != nil {
 		return err
@@ -141,6 +146,7 @@ func init() {
 	addCmd.Flags().DurationVar(&addFor, "for", 0, "block for a duration from now, e.g. 2h30m (implies timer)")
 	addCmd.Flags().StringVar(&addUntil, "until", "", "block until a time of day HH:MM (implies timer)")
 	addCmd.Flags().BoolVar(&addReplace, "replace", false, "overwrite an existing rule for the domain")
+	addCmd.Flags().BoolVar(&addHidden, "hidden", false, "block the domain but hide it from 'vessel list'")
 
 	addCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		fmt.Fprintln(cmd.ErrOrStderr(), err.Error())

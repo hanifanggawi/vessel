@@ -109,6 +109,7 @@ type DomainRule struct {
 	Kind           RuleType     `toml:"kind"`
 	BlockedUntil   time.Time    `toml:"blocked_until"`
 	BlockedWindows []TimeWindow `toml:"blocked_windows"`
+	Hidden         bool         `toml:"hidden"`
 }
 
 func (r DomainRule) ConfigStr() string {
@@ -128,6 +129,10 @@ func (r DomainRule) ConfigStr() string {
 			windows[i] = fmt.Sprintf("{start=%q, end=%q}", w.StartTime, w.EndTime)
 		}
 		parts = append(parts, fmt.Sprintf("blocked_windows = [%s]", strings.Join(windows, ", ")))
+	}
+
+	if r.Hidden {
+		parts = append(parts, "hidden = true")
 	}
 
 	return fmt.Sprintf("%q = { %s }", r.Domain, strings.Join(parts, ", "))
@@ -172,6 +177,7 @@ type RuleSpec struct {
 	Windows []TimeWindow
 	For     time.Duration
 	Until   string
+	Hidden  bool
 }
 
 func (s RuleSpec) typeCount() int {
@@ -198,7 +204,7 @@ func BuildRule(spec RuleSpec) (DomainRule, error) {
 		return DomainRule{}, fmt.Errorf("a rule can only be one of: scheduled (--window), timer (--for / --until)")
 	}
 
-	rule := DomainRule{Domain: spec.Domain, AddedAt: time.Now()}
+	rule := DomainRule{Domain: spec.Domain, AddedAt: time.Now(), Hidden: spec.Hidden}
 
 	switch {
 	case len(spec.Windows) > 0:
@@ -258,15 +264,21 @@ func DomainConfigListStr() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(rules) == 0 {
+	visible := make([]DomainRule, 0, len(rules))
+	for _, r := range rules {
+		if !r.Hidden {
+			visible = append(visible, r)
+		}
+	}
+	if len(visible) == 0 {
 		return "No rules configured. \n", nil
 	}
 	var sb strings.Builder
-	sb.Grow(134 + len(rules)*72)
+	sb.Grow(134 + len(visible)*72)
 	fmt.Fprintf(&sb, "%-40s %-12s %s\n", "DOMAIN", "KIND", "DETAILS")
 	sb.WriteString(strings.Repeat("-", 72))
 	sb.WriteString("\n")
-	for _, r := range rules {
+	for _, r := range visible {
 		details := ruleDetails(r)
 		fmt.Fprintf(&sb, "%-40s %-12s %s\n", r.Domain, string(r.Kind), details)
 	}
@@ -458,7 +470,8 @@ func writeConfigWithSeal(path string, rules []DomainRule, sealed bool) error {
 	fmt.Fprintf(&sb, "sealed = %t\n\n", sealed)
 	sb.WriteString("[rules]\n")
 	for _, rule := range sorted {
-		sb.WriteString(rule.ConfigStr() + "\n")
+		sb.WriteString(rule.ConfigStr())
+		sb.WriteString("\n")
 	}
 	return os.WriteFile(path, []byte(sb.String()), 0644)
 }
